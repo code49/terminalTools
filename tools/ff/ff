@@ -1,0 +1,313 @@
+#!/usr/bin/env bash
+#
+# ff — Firefox shortcut launcher
+#
+# Opens Firefox windows/tabs via short mnemonic shortcuts.
+# Shortcuts are defined in ff.conf (see README.md for format).
+#
+# Usage:
+#   ff <shortcut>     Launch a site/profile directly
+#   ff                Open interactive fuzzy selector (requires fzf)
+#   ff -h | --help    Show available shortcuts
+#   ff -e | --edit    Open the config file in $EDITOR
+#
+
+# stop execution if we reach a non-zero exit code
+set -euo pipefail
+
+###############################################################################
+# Locate Firefox binary (portable — no Nix-specific paths)
+###############################################################################
+FIREFOX_BIN="$(command -v firefox 2>/dev/null || true)"
+if [ -z "$FIREFOX_BIN" ]; then
+  echo "Error: firefox not found in PATH." >&2
+  exit 127
+fi
+
+###############################################################################
+# Locate configuration file
+#   Search order:
+#     1. $FF_CONF          (explicit override)
+#     2. $XDG_CONFIG_HOME/ff/ff.conf
+#     3. ~/.config/ff/ff.conf
+#     4. Same directory as this script
+###############################################################################
+find_config() {
+  if [ -n "${FF_CONF:-}" ] && [ -f "$FF_CONF" ]; then
+    echo "$FF_CONF"
+    return
+  fi
+
+  local xdg="${XDG_CONFIG_HOME:-$HOME/.config}"
+  if [ -f "$xdg/ff/ff.conf" ]; then
+    echo "$xdg/ff/ff.conf"
+    return
+  fi
+
+  # Fallback: same directory as the script itself
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  if [ -f "$script_dir/ff.conf" ]; then
+    echo "$script_dir/ff.conf"
+    return
+  fi
+
+  echo ""
+}
+
+CONF_FILE="$(find_config)"
+
+if [ -z "$CONF_FILE" ]; then
+  echo "Error: could not find ff.conf in any search path." >&2
+  echo "Looked in:" >&2
+  echo "  \$FF_CONF (not set or file missing)" >&2
+  echo "  ${XDG_CONFIG_HOME:-$HOME/.config}/ff/ff.conf" >&2
+  echo "  $(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/ff.conf" >&2
+  exit 1
+fi
+
+###############################################################################
+# Config parser helpers
+###############################################################################
+
+# Read non-comment, non-blank lines from the config.
+# Each line: shortcut | category | label | profile | url
+read_config() {
+  grep -v '^\s*#' "$CONF_FILE" | grep -v '^\s*$'
+}
+
+# Lookup a single shortcut. Returns the raw config line (or empty).
+lookup_shortcut() {
+  local key="$1"
+  # Match shortcut field (first column, trimmed).
+  read_config | while IFS='|' read -r sc _rest; do
+    sc="$(echo "$sc" | xargs)"  # trim whitespace
+    if [ "$sc" = "$key" ]; then
+      # Re-read the full line so callers get all fields.
+      echo "$sc|$_rest"
+      return 0
+    fi
+  done
+}
+
+# Parse a config line into global variables.
+parse_line() {
+  local line="$1"
+  IFS='|' read -r SC_KEY SC_CAT SC_LABEL SC_PROFILE SC_URL <<< "$line"
+  SC_KEY="$(echo "$SC_KEY" | xargs)"
+  SC_CAT="$(echo "$SC_CAT" | xargs)"
+  SC_LABEL="$(echo "$SC_LABEL" | xargs)"
+  SC_PROFILE="$(echo "$SC_PROFILE" | xargs)"
+  SC_URL="$(echo "$SC_URL" | xargs)"
+}
+
+###############################################################################
+# Core launcher
+###############################################################################
+
+# Open Firefox with a given profile + URL combo (detached).
+open_ff() {
+  local profile="$1"
+  local url="$2"
+
+  # Expand tilde in local paths
+  url="${url/#\~/$HOME}"
+
+  # open firefox (detached) with given profile and arguments, redirect output
+  nohup "$FIREFOX_BIN" -p "$profile" -new-window "$url" >/dev/null 2>&1 &
+}
+
+###############################################################################
+# Handle special built-in shortcuts that aren't in the config
+###############################################################################
+
+# Private window (not config-driven)
+handle_pri() {
+  nohup "$FIREFOX_BIN" -private-window >/dev/null 2>&1 &
+}
+
+###############################################################################
+# Internet connectivity check
+###############################################################################
+check_internet() {
+  local shortcut="${1:-}"
+
+  # Skip check for local / offline shortcuts
+  case "$shortcut" in
+    res|pri) return 0 ;;
+  esac
+
+  # Also skip if the URL looks like a local file path
+  # (handled per-shortcut after lookup in dispatch)
+
+  # Ping Cloudflare DNS and Google DNS with a short timeout
+  if ! ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1 && \
+     ! ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
+    if command -v notify-send >/dev/null 2>&1; then
+      notify-send -i firefox "Firefox Shortcuts" \
+        "Launch failed: No internet connection."
+    else
+      echo "Error: No internet connection." >&2
+    fi
+    exit 126
+  fi
+}
+
+###############################################################################
+# Dispatch a shortcut key
+###############################################################################
+dispatch() {
+  local key="$1"
+
+  # --- built-in specials (not in config) ---
+  if [ "$key" = "pri" ]; then
+    handle_pri
+    return 0
+  fi
+
+  # --- config lookup ---
+  local line
+  line="$(lookup_shortcut "$key")"
+
+  if [ -z "$line" ]; then
+    echo "Error: could not find match for input '$key'" >&2
+    echo "Run 'ff --help' to list available shortcuts." >&2
+    exit 127
+  fi
+
+  parse_line "$line"
+
+  # Handle MULTI-url shortcuts (e.g. mails)
+  if [ "$SC_PROFILE" = "MULTI" ]; then
+    # SC_URL is: "profile1 url1 profile2 url2 ..."
+    local tokens
+    read -ra tokens <<< "$SC_URL"
+    local i=0
+    while [ $i -lt ${#tokens[@]} ]; do
+      open_ff "${tokens[$i]}" "${tokens[$((i+1))]}"
+      i=$((i + 2))
+    done
+    return 0
+  fi
+
+  open_ff "$SC_PROFILE" "$SC_URL"
+}
+
+###############################################################################
+# --help: print available shortcuts from config
+###############################################################################
+show_help() {
+  cat <<EOF
+Firefox Shortcut Launcher (ff)
+
+Usage:
+  ff <shortcut>      Launch a site/profile directly
+  ff                 Open interactive fuzzy selector (requires fzf)
+  ff -h | --help     Show this help message
+  ff -e | --edit     Open the config file in \$EDITOR
+
+Config file: $CONF_FILE
+
+Shortcuts (from config):
+EOF
+
+  local prev_cat=""
+  read_config | while IFS='|' read -r sc cat label _profile _url; do
+    sc="$(echo "$sc" | xargs)"
+    cat="$(echo "$cat" | xargs)"
+    label="$(echo "$label" | xargs)"
+    if [ "$cat" != "$prev_cat" ]; then
+      printf "\n  [%s]\n" "$cat"
+      prev_cat="$cat"
+    fi
+    printf "    %-10s %s\n" "$sc" "$label"
+  done
+
+  cat <<EOF
+
+Built-in shortcuts (not in config):
+    pri        Launch personal profile in private window
+EOF
+}
+
+###############################################################################
+# --edit: open config in $EDITOR
+###############################################################################
+edit_config() {
+  local editor="${EDITOR:-${VISUAL:-vi}}"
+  exec "$editor" "$CONF_FILE"
+}
+
+###############################################################################
+# fzf interactive selector
+###############################################################################
+interactive_select() {
+  if ! command -v fzf >/dev/null 2>&1; then
+    echo "Error: fzf is not installed, and no shortcut was specified." >&2
+    exit 127
+  fi
+
+  # Build the menu from config + built-in specials
+  local menu
+  menu="$(
+    read_config | while IFS='|' read -r sc cat label _profile _url; do
+      sc="$(echo "$sc" | xargs)"
+      cat="$(echo "$cat" | xargs)"
+      label="$(echo "$label" | xargs)"
+      printf "[%-9s] %-8s - %s\n" "$cat" "$sc" "$label"
+    done
+    # Append built-in specials
+    printf "[%-9s] %-8s - %s\n" "General" "pri" "Private Window"
+  )"
+
+  local choice
+  choice="$(echo "$menu" | fzf \
+    --prompt="Select Firefox Shortcut: " \
+    --header="Press [Enter] to open, [Esc] to cancel." \
+    --height=40% --layout=reverse --border)" || true
+
+  # If user canceled fzf selection, exit 130 (SIGINT standard)
+  if [ -z "$choice" ]; then
+    echo "Cancelled selection."
+    exit 130
+  fi
+
+  # Extract shortcut (second field after the category tag)
+  local key
+  key="$(echo "$choice" | awk '{print $2}')"
+  echo "$key"
+}
+
+###############################################################################
+# Main
+###############################################################################
+main() {
+  local shortcut="${1:-}"
+
+  # Handle flags
+  case "$shortcut" in
+    -h|--help)
+      show_help
+      exit 0
+      ;;
+    -e|--edit)
+      edit_config
+      # exec replaces process, so we never reach here
+      ;;
+  esac
+
+  # If no shortcut given, launch interactive selector
+  if [ -z "$shortcut" ]; then
+    shortcut="$(interactive_select)"
+  fi
+
+  # Check internet connectivity (skips local/private shortcuts)
+  check_internet "$shortcut"
+
+  # Dispatch the shortcut
+  dispatch "$shortcut"
+
+  exit 0
+}
+
+main "$@"
