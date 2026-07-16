@@ -450,6 +450,11 @@ if [ "$GIT_STATUS" = true ]; then
         echo
         echo -e "${COLOR_TITLE}== git status ==${COLOR_RESET}"
         git -C "$TARGET" -c color.status=always status
+    else
+        COLOR_WARNING="\e[1;33m"
+        COLOR_RESET="\e[0m"
+        echo
+        echo -e "${COLOR_WARNING}Warning: '$TARGET' is not inside a git repository.${COLOR_RESET}" >&2
     fi
 fi
 
