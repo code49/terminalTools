@@ -80,14 +80,15 @@ read_config() {
 lookup_shortcut() {
   local key="$1"
   # Match shortcut field (first column, trimmed).
-  read_config | while IFS='|' read -r sc _rest; do
+  while IFS='|' read -r sc _rest; do
     sc="$(echo "$sc" | xargs)"  # trim whitespace
     if [ "$sc" = "$key" ]; then
       # Re-read the full line so callers get all fields.
       echo "$sc|$_rest"
       return 0
     fi
-  done
+  done < <(read_config)
+  return 1
 }
 
 # Parse a config line into global variables.
@@ -254,10 +255,10 @@ interactive_select() {
       sc="$(echo "$sc" | xargs)"
       cat="$(echo "$cat" | xargs)"
       label="$(echo "$label" | xargs)"
-      printf "[%-9s] %-8s - %s\n" "$cat" "$sc" "$label"
+      printf "%-12s %-8s - %s\n" "[$cat]" "$sc" "$label"
     done
     # Append built-in specials
-    printf "[%-9s] %-8s - %s\n" "General" "pri" "Private Window"
+    printf "%-12s %-8s - %s\n" "[General]" "pri" "Private Window"
   )"
 
   local choice
