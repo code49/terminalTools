@@ -127,6 +127,11 @@ handle_pri() {
   nohup "$FIREFOX_BIN" -private-window >/dev/null 2>&1 &
 }
 
+# Run startup apps script (not config-driven)
+handle_start() {
+  nohup python3 "$HOME/.dotfiles/home/hyprland/scripts/startup_apps.py" >/dev/null 2>&1 &
+}
+
 ###############################################################################
 # Internet connectivity check
 ###############################################################################
@@ -135,7 +140,7 @@ check_internet() {
 
   # Skip check for local / offline shortcuts
   case "$shortcut" in
-    res|pri) return 0 ;;
+    res|pri|start) return 0 ;;
   esac
 
   # Also skip if the URL looks like a local file path
@@ -163,6 +168,9 @@ dispatch() {
   # --- built-in specials (not in config) ---
   if [ "$key" = "pri" ]; then
     handle_pri
+    return 0
+  elif [ "$key" = "start" ]; then
+    handle_start
     return 0
   fi
 
@@ -228,6 +236,7 @@ EOF
 
 Built-in shortcuts (not in config):
     pri        Launch personal profile in private window
+    start      Run startup apps script manually
 EOF
 }
 
@@ -259,6 +268,7 @@ interactive_select() {
     done
     # Append built-in specials
     printf "%-12s %-8s - %s\n" "[General]" "pri" "Private Window"
+    printf "%-12s %-8s - %s\n" "[General]" "start" "Run Startup Apps Script"
   )"
 
   local choice
