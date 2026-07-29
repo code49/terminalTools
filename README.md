@@ -13,6 +13,7 @@ System-agnostic utilities that work on any Linux or macOS installation. No depen
 | `sls` | Smart LS with split view, tree mode, and git status | bash, (optional: python3, tree, git) |
 | `ff` | Firefox shortcut launcher with fzf interactive selector | bash, firefox, (optional: fzf) |
 | `gitac` | Quick git add-all and commit | bash, git |
+| `dup` | Duplicate terminal state (cwd, nix-shell, venv, conda) | python3, (optional: tmux, kitty/alacritty) |
 
 ## Installation
 
@@ -68,6 +69,15 @@ ff github        # launch a named shortcut directly
 
 ```bash
 gitac "fix typo in README"    # stages all changes and commits
+```
+
+### dup — Terminal State Duplicator
+
+```bash
+dup              # duplicate current terminal state (splits in tmux, opens new window otherwise)
+dupv             # split vertically (tmux only)
+dupt             # new window/tab (tmux or terminal emulator)
+dupw             # force launch new graphical terminal window (bypasses tmux)
 ```
 
 ## License

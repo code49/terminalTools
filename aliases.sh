@@ -13,6 +13,14 @@ alias lstg="$TERMINAL_TOOLS_PATH/sls/sls -t -g"
 # Gitac alias
 alias gitac="$TERMINAL_TOOLS_PATH/gitac/gitac"
 
+# Terminal State Duplicator
+dup() {
+  "$TERMINAL_TOOLS_PATH/dup/dup" "$$" "$@"
+}
+alias dupv="dup -v"
+alias dupt="dup -t"
+alias dupw="dup -w"
+
 # Firefox Shortcut Launcher
 ff() {
   "$TERMINAL_TOOLS_PATH/ff/ff" "$@"

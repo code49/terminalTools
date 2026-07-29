@@ -1,0 +1,308 @@
+#!/usr/bin/env python3
+import sys
+import os
+import shlex
+import subprocess
+import argparse
+import shutil
+
+def get_proc_info(pid):
+    try:
+        with open(f"/proc/{pid}/stat", "r") as f:
+            data = f.read().strip()
+        idx = data.rfind(")")
+        if idx == -1:
+            return None
+        comm = data[data.find("(")+1:idx]
+        rest = data[idx+2:].split()
+        ppid = int(rest[1])
+        return {"pid": pid, "comm": comm, "ppid": ppid}
+    except Exception:
+        return None
+
+def get_proc_cmdline(pid):
+    try:
+        with open(f"/proc/{pid}/cmdline", "r") as f:
+            data = f.read()
+        if not data:
+            return []
+        args = data.split("\x00")
+        if args and args[-1] == "":
+            args.pop()
+        return args
+    except Exception:
+        return []
+
+def get_proc_env(pid):
+    try:
+        with open(f"/proc/{pid}/environ", "rb") as f:
+            data = f.read()
+        env = {}
+        for item in data.split(b"\x00"):
+            if b"=" in item:
+                k, v = item.split(b"=", 1)
+                try:
+                    env[k.decode("utf-8", errors="ignore")] = v.decode("utf-8", errors="ignore")
+                except Exception:
+                    pass
+        return env
+    except Exception:
+        return {}
+
+def get_cwd(pid):
+    try:
+        return os.readlink(f"/proc/{pid}/cwd")
+    except Exception:
+        return None
+
+def find_nix_command(shell_pid):
+    pid = shell_pid
+    while pid > 1:
+        info = get_proc_info(pid)
+        if not info:
+            break
+        comm = info["comm"]
+        if comm in ("nix-shell", "nix"):
+            cmdline = get_proc_cmdline(pid)
+            if comm == "nix-shell":
+                return cmdline
+            elif comm == "nix" and len(cmdline) > 1 and cmdline[1] in ("shell", "develop"):
+                return cmdline
+        pid = info["ppid"]
+    return None
+
+def find_terminal_emulator(shell_pid, env):
+    pid = shell_pid
+    while pid > 1:
+        info = get_proc_info(pid)
+        if not info:
+            break
+        comm = info["comm"]
+        if comm in ("kitty", "alacritty", "wezterm", "wezterm-gui", 
+                    "gnome-terminal", "gnome-terminal-", "gnome-terminal-server", 
+                    "konsole", "xfce4-terminal", "foot", "urxvt", "rxvt", "xterm"):
+            return comm
+        pid = info["ppid"]
+    
+    term = env.get("TERM", "")
+    if "kitty" in term:
+        return "kitty"
+    if "alacritty" in term:
+        return "alacritty"
+    if "wezterm" in term:
+        return "wezterm"
+    
+    for term_bin in ("kitty", "alacritty", "wezterm", "gnome-terminal", "konsole", "xfce4-terminal", "foot"):
+        if shutil.which(term_bin):
+            return term_bin
+            
+    return "xterm"
+
+def main():
+    parser = argparse.ArgumentParser(
+        usage="%(prog)s [options] shell_pid",
+        description="Duplicate the current terminal state (directory, nix-shell, virtualenv, conda).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Convenience functions / aliases (defined in aliases.sh):
+  dup          Duplicate state (horizontal split in tmux, new window otherwise)
+  dupv         Split vertically (equivalent to `dup -v`)
+  dupt         Create a new window/tab (equivalent to `dup -t`)
+  dupw         Force new graphical terminal window, bypassing tmux (equivalent to `dup -w`)
+
+Examples:
+  dup          # Clones state to a new tmux pane / window
+  dupv         # Splits vertically in tmux
+  dup -n       # Dry-run: prints the command that would be run
+"""
+    )
+    parser.add_argument("shell_pid", type=int, help="PID of the parent shell process")
+    parser.add_argument("-v", "--vertical", action="store_true", help="Split vertically (tmux only)")
+    parser.add_argument("-t", "--tab", action="store_true", help="Create a new window/tab (tmux or terminal emulator)")
+    parser.add_argument("-w", "--window", action="store_true", help="Force new graphical terminal window (bypasses tmux)")
+    parser.add_argument("-n", "--dry-run", action="store_true", help="Print the command that would be executed")
+
+    args = parser.parse_args()
+
+    # Get target shell details
+    shell_env = get_proc_env(args.shell_pid)
+    cwd = get_cwd(args.shell_pid)
+    if not cwd:
+        cwd = os.getcwd()
+
+    shell = shell_env.get("SHELL", "/bin/bash")
+
+    # Detect active environments
+    conda_prefix = shell_env.get("CONDA_PREFIX")
+    virtual_env = shell_env.get("VIRTUAL_ENV")
+    in_nix_shell = "IN_NIX_SHELL" in shell_env
+    nix_cmd = find_nix_command(args.shell_pid)
+    
+    # If IN_NIX_SHELL is set but we couldn't find a nix-shell process in ancestors,
+    # default to 'nix-shell' command
+    if in_nix_shell and not nix_cmd:
+        nix_cmd = ["nix-shell"]
+
+    # Construct inner command (conda/virtualenv activation + shell launch)
+    inner_parts = []
+    if conda_prefix:
+        inner_parts.append(f'source "{conda_prefix}/bin/activate"')
+    if virtual_env:
+        inner_parts.append(f'source "{virtual_env}/bin/activate"')
+
+    # If we are inside nix-shell, it will spawn its own shell, so nix-shell itself
+    # is the outer wrapper. If not in nix-shell, but we have python envs, we exec the shell.
+    has_python_env = bool(inner_parts)
+    
+    if has_python_env:
+        # If the user shell is fish, we run the activation commands under bash/zsh,
+        # then exec fish at the end since bash/zsh activation scripts are more standard.
+        run_shell = shell
+        if "fish" in shell:
+            run_shell = "/bin/bash"
+        inner_parts.append(f'exec "{shell}"')
+        inner_cmd = " && ".join(inner_parts)
+    else:
+        inner_cmd = None
+        run_shell = shell
+
+    # Construct outer command with Nix integration
+    if nix_cmd:
+        if nix_cmd[0] == "nix-shell":
+            if inner_cmd:
+                # Filter out existing run commands from original args to avoid conflicts
+                filtered_args = []
+                skip = False
+                for arg in nix_cmd[1:]:
+                    if skip:
+                        skip = False
+                        continue
+                    if arg in ("--run", "--command"):
+                        skip = True
+                        continue
+                    filtered_args.append(arg)
+                final_args = ["nix-shell"] + filtered_args + ["--run", inner_cmd]
+            else:
+                final_args = nix_cmd
+        elif nix_cmd[0] == "nix" and len(nix_cmd) > 1 and nix_cmd[1] in ("shell", "develop"):
+            subcmd = nix_cmd[1]
+            if inner_cmd:
+                filtered_args = []
+                skip = False
+                for arg in nix_cmd[2:]:
+                    if skip:
+                        skip = False
+                        continue
+                    if arg in ("-c", "--command"):
+                        skip = True
+                        continue
+                    filtered_args.append(arg)
+                final_args = ["nix", subcmd] + filtered_args + ["-c", run_shell, "-c", inner_cmd]
+            else:
+                final_args = nix_cmd
+        else:
+            final_args = nix_cmd
+        
+        cmd_str = " ".join(shlex.quote(arg) for arg in final_args)
+    else:
+        cmd_str = inner_cmd
+
+    # Print detected state
+    print(f"Duplicating state from shell PID: {args.shell_pid}")
+    print(f"  Working Directory: {cwd}")
+    if nix_cmd:
+        print(f"  Nix Shell:         {' '.join(nix_cmd)}")
+    if virtual_env:
+        print(f"  Virtualenv:        {virtual_env}")
+    if conda_prefix:
+        print(f"  Conda Env:         {conda_prefix}")
+    if cmd_str:
+        print(f"  Activation Cmd:    {cmd_str}")
+
+    # Check if we should use TMUX (if TMUX env is set and --window is not requested)
+    in_tmux = "TMUX" in shell_env
+    if in_tmux and not args.window:
+        # Build tmux command
+        tmux_cmd = ["tmux"]
+        if args.tab:
+            tmux_cmd.extend(["new-window", "-c", cwd])
+        elif args.vertical:
+            tmux_cmd.extend(["split-window", "-v", "-c", cwd])
+        else:
+            # Default horizontal split
+            tmux_cmd.extend(["split-window", "-h", "-c", cwd])
+        
+        if cmd_str:
+            tmux_cmd.append(cmd_str)
+
+        if args.dry_run:
+            print(f"\n[Dry Run] Would run tmux command:\n  {' '.join(shlex.quote(x) for x in tmux_cmd)}")
+            return
+
+        try:
+            subprocess.run(tmux_cmd, check=True)
+            print("Successfully duplicated session in tmux.")
+        except subprocess.CalledProcessError as e:
+            print(f"Error running tmux: {e}", file=sys.stderr)
+            sys.exit(1)
+    else:
+        # Graphical terminal emulator
+        raw_emulator = find_terminal_emulator(args.shell_pid, shell_env)
+        
+        # Map process names to binary names
+        term_map = {
+            "gnome-terminal-server": "gnome-terminal",
+            "gnome-terminal-": "gnome-terminal",
+            "wezterm-gui": "wezterm",
+        }
+        emulator = term_map.get(raw_emulator, raw_emulator)
+        
+        # Build terminal emulator launch args
+        if cmd_str:
+            if emulator == "kitty":
+                launch_args = ["kitty", "--directory", cwd, shell, "-c", cmd_str]
+            elif emulator == "alacritty":
+                launch_args = ["alacritty", "--working-directory", cwd, "-e", shell, "-c", cmd_str]
+            elif emulator == "wezterm":
+                launch_args = ["wezterm", "start", "--cwd", cwd, "--", shell, "-c", cmd_str]
+            elif emulator == "gnome-terminal":
+                launch_args = ["gnome-terminal", f"--working-directory={cwd}", "--", shell, "-c", cmd_str]
+            elif emulator == "konsole":
+                launch_args = ["konsole", "--workdir", cwd, "-e", shell, "-c", cmd_str]
+            elif emulator == "xfce4-terminal":
+                launch_args = ["xfce4-terminal", f"--working-directory={cwd}", "-x", shell, "-c", cmd_str]
+            elif emulator == "foot":
+                launch_args = ["foot", "-D", cwd, shell, "-c", cmd_str]
+            else:
+                launch_args = ["xterm", "-cd", cwd, "-e", shell, "-c", cmd_str]
+        else:
+            if emulator == "kitty":
+                launch_args = ["kitty", "--directory", cwd]
+            elif emulator == "alacritty":
+                launch_args = ["alacritty", "--working-directory", cwd]
+            elif emulator == "wezterm":
+                launch_args = ["wezterm", "start", "--cwd", cwd]
+            elif emulator == "gnome-terminal":
+                launch_args = ["gnome-terminal", f"--working-directory={cwd}"]
+            elif emulator == "konsole":
+                launch_args = ["konsole", "--workdir", cwd]
+            elif emulator == "xfce4-terminal":
+                launch_args = ["xfce4-terminal", f"--working-directory={cwd}"]
+            elif emulator == "foot":
+                launch_args = ["foot", "-D", cwd]
+            else:
+                launch_args = ["xterm", "-cd", cwd]
+
+        if args.dry_run:
+            print(f"\n[Dry Run] Would launch terminal emulator:\n  {' '.join(shlex.quote(x) for x in launch_args)}")
+            return
+
+        print(f"Launching terminal emulator '{emulator}'...")
+        try:
+            subprocess.Popen(launch_args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, stdin=subprocess.DEVNULL, start_new_session=True)
+        except Exception as e:
+            print(f"Error launching terminal emulator '{emulator}': {e}", file=sys.stderr)
+            sys.exit(1)
+
+if __name__ == "__main__":
+    main()
