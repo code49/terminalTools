@@ -276,6 +276,8 @@ if [ "$SPLIT" = true ]; then
             print_section "hidden symlinks" -type l -name ".*"
         } | python3 -c '
 import sys
+sys.stdin.reconfigure(errors="surrogateescape")
+sys.stdout.reconfigure(errors="surrogateescape")
 import re
 import shutil
 
