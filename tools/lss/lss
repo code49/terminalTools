@@ -17,6 +17,7 @@ Options:
   -t, -T, --tree Enable recursive tree view (defaults to depth 3)
                  You can optionally specify depth: -t [depth] (e.g., -t 2)
   -g, --git      Show 'git status' at the bottom of the output if in a git repository
+  -gh, --github  Open project repository in Firefox (profile dchan-personal) if in a git repository
   -h, --help     Show this help message
 
 All other flags (e.g., -l, -S) are passed directly to the underlying commands.
@@ -27,6 +28,7 @@ EOF
 MODE="split"
 TREE_DEPTH=3
 GIT_STATUS=false
+OPEN_GITHUB=false
 PARAMS=()
 TARGET=""
 
@@ -57,6 +59,10 @@ while [ "$#" -gt 0 ]; do
             GIT_STATUS=true
             shift
             ;;
+        -gh|--github)
+            OPEN_GITHUB=true
+            shift
+            ;;
         -*)
             PARAMS+=("$1")
             shift
@@ -74,6 +80,59 @@ done
 
 # Default to current directory if none specified
 TARGET="${TARGET:-.}"
+
+open_github_repo() {
+    if ! command -v firefox >/dev/null 2>&1; then
+        echo "Error: 'firefox' command is required for --github mode but is not installed." >&2
+        return 1
+    fi
+
+    if ! git -C "$TARGET" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        COLOR_WARNING="\e[1;33m"
+        COLOR_RESET="\e[0m"
+        echo -e "${COLOR_WARNING}Warning: '$TARGET' is not inside a git repository.${COLOR_RESET}" >&2
+        return 1
+    fi
+
+    local raw_url
+    raw_url=$(git -C "$TARGET" remote get-url origin 2>/dev/null)
+    if [ -z "$raw_url" ]; then
+        local first_remote
+        first_remote=$(git -C "$TARGET" remote 2>/dev/null | head -n 1)
+        if [ -n "$first_remote" ]; then
+            raw_url=$(git -C "$TARGET" remote get-url "$first_remote" 2>/dev/null)
+        fi
+    fi
+    if [ -z "$raw_url" ]; then
+        raw_url=$(git -C "$TARGET" config --get-regexp '^remote\..*\.url$' 2>/dev/null | head -n 1 | awk '{print $2}')
+    fi
+
+    if [ -z "$raw_url" ]; then
+        COLOR_WARNING="\e[1;33m"
+        COLOR_RESET="\e[0m"
+        echo -e "${COLOR_WARNING}Warning: No git remote URL found for '$TARGET'.${COLOR_RESET}" >&2
+        return 1
+    fi
+
+    local web_url="$raw_url"
+    web_url="${web_url%.git}"
+
+    if [[ "$web_url" =~ ^git@([^:]+):(.+)$ ]]; then
+        local host="${BASH_REMATCH[1]}"
+        local path="${BASH_REMATCH[2]}"
+        web_url="https://${host}/${path}"
+    elif [[ "$web_url" =~ ^ssh://(git@)?([^/]+)/(.+)$ ]]; then
+        local host="${BASH_REMATCH[2]}"
+        local path="${BASH_REMATCH[3]}"
+        host="${host%%:*}"
+        web_url="https://${host}/${path}"
+    elif [[ "$web_url" =~ ^https?:// ]]; then
+        :
+    fi
+
+    echo "Opening $web_url in Firefox (profile: dchan-personal)..."
+    nohup firefox -P "dchan-personal" "$web_url" >/dev/null 2>&1 &
+}
 
 # Handle Tree Mode
 if [ "$MODE" = "tree" ]; then
@@ -139,6 +198,9 @@ if [ "$MODE" = "tree" ]; then
             git -C "$TARGET" -c color.status=always status
         fi
     fi
+    if [ "$OPEN_GITHUB" = true ]; then
+        open_github_repo
+    fi
     exit $EXIT_CODE
 fi
 
@@ -154,6 +216,9 @@ if [ "$MODE" = "split" ] && [ ! -d "$TARGET" ]; then
             echo -e "${COLOR_TITLE}== git status ==${COLOR_RESET}"
             git -C "$TARGET" -c color.status=always status
         fi
+    fi
+    if [ "$OPEN_GITHUB" = true ]; then
+        open_github_repo
     fi
     exit $EXIT_CODE
 fi
@@ -465,6 +530,10 @@ if [ "$GIT_STATUS" = true ]; then
         echo
         echo -e "${COLOR_WARNING}Warning: '$TARGET' is not inside a git repository.${COLOR_RESET}" >&2
     fi
+fi
+
+if [ "$OPEN_GITHUB" = true ]; then
+    open_github_repo
 fi
 
 if [ -n "$EXIT_CODE" ]; then

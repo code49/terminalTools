@@ -8,6 +8,7 @@ An improved `ls` wrapper that groups directory contents by type (directories, fi
 - **Flat view**: A standard `ls -A` with `--group-directories-first`, for when you just want a quick listing.
 - **Tree view**: Wraps the `tree` command with sensible defaults (`-a`, `--dirsfirst`, color, classify) and adds the absolute path on the first line for relative targets.
 - **Git status**: Optionally appends `git status` output at the bottom when inside a git repository.
+- **GitHub repo**: Optionally opens the project repository in Firefox (profile `dchan-personal`) if inside a git repository.
 - **Symlink targets**: In split view, symlinks are displayed with `->` arrows pointing to their targets, both colorized.
 - **Pass-through flags**: Flags like `-l`, `-h`, `-S`, etc. are forwarded to the underlying `ls` or `tree` commands.
 
@@ -25,6 +26,7 @@ lss [options] [directory]
 | `-f`, `--flat`, `--no-split` | Flat view — standard `ls -A` output |
 | `-t`, `-T`, `--tree` | Tree view (default depth: 3). Optionally specify depth: `-t 2` |
 | `-g`, `--git` | Append `git status` output if inside a git repo |
+| `-gh`, `--github` | Open project repository in Firefox (profile `dchan-personal`) if inside a git repo |
 | `-h`, `--help` | Show built-in help |
 
 Any other flags (e.g., `-l`, `-S`) are passed through to `ls` or `tree`.
@@ -54,6 +56,9 @@ lss -t -lh
 lss -g
 lss -t -g
 lss -f -g
+
+# Open project repository in Firefox (profile dchan-personal)
+lss -gh
 ```
 
 ## How Split View Works
@@ -75,7 +80,8 @@ lss -f -g
 | `readlink` | **Yes** | Resolving symlink targets |
 | `python3` | Optional | Side-by-side column layout in split view |
 | `tree` | Optional | Required only for tree mode (`-t`) |
-| `git` | Optional | Required only for `--git` flag |
+| `git` | Optional | Required only for `--git` or `--github` flags |
+| `firefox` | Optional | Required only for `--github` flag |
 
 ## Installation
 

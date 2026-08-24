@@ -9,6 +9,7 @@ alias lss="$TERMINAL_TOOLS_PATH/lss/lss"
 alias lst="$TERMINAL_TOOLS_PATH/lss/lss -t"
 alias lsg="$TERMINAL_TOOLS_PATH/lss/lss -g"
 alias lstg="$TERMINAL_TOOLS_PATH/lss/lss -t -g"
+alias lsgh="$TERMINAL_TOOLS_PATH/lss/lss -gh"
 
 # Gitac alias
 alias gitac="$TERMINAL_TOOLS_PATH/gitac/gitac"
