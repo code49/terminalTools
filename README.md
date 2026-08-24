@@ -10,7 +10,7 @@ System-agnostic utilities that work on any Linux or macOS installation. No depen
 
 | Tool | Description | Dependencies |
 |------|-------------|--------------|
-| `sls` | Smart LS with split view, tree mode, and git status | bash, (optional: python3, tree, git) |
+| `lss` | Smart LS with split view, tree mode, and git status | bash, (optional: python3, tree, git) |
 | `ff` | Firefox shortcut launcher with fzf interactive selector | bash, firefox, (optional: fzf) |
 | `gitac` | Quick git add-all and commit | bash, git |
 | `dup` | Duplicate terminal state (cwd, nix-shell, venv, conda) | python3, (optional: tmux, kitty/alacritty) |
@@ -49,13 +49,13 @@ source /path/to/terminalTools/aliases.sh
 
 ## Quick Usage
 
-### sls — Smart LS
+### lss — Smart LS
 
 ```bash
-sls              # smart directory listing with split view
-sls -t           # tree mode
-sls -g           # include git status
-sls -t -g        # tree mode with git status
+lss              # smart directory listing with split view
+lss -t           # tree mode
+lss -g           # include git status
+lss -t -g        # tree mode with git status
 ```
 
 ### ff — Firefox Launcher

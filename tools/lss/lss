@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# sls.sh - Super LS
+# lss.sh - Smart LS
 # An improved ls wrapper that always shows hidden files and supports a split view.
 
 show_help() {
@@ -264,15 +264,15 @@ if [ "$SPLIT" = true ]; then
     if command -v python3 >/dev/null 2>&1 && [ "$HAS_L" = false ] && [ "$HAS_1" = false ]; then
         {
             print_section "directories" -type d -not -name ".*"
-            echo "---SLS-SECTION-SEPARATOR---"
+            echo "---LSS-SECTION-SEPARATOR---"
             print_section "hidden directories" -type d -name ".*" -not -name "." -not -name ".."
-            echo "---SLS-SECTION-SEPARATOR---"
+            echo "---LSS-SECTION-SEPARATOR---"
             print_section "files" -not -type d -not -type l -not -name ".*"
-            echo "---SLS-SECTION-SEPARATOR---"
+            echo "---LSS-SECTION-SEPARATOR---"
             print_section "hidden files" -not -type d -not -type l -name ".*"
-            echo "---SLS-SECTION-SEPARATOR---"
+            echo "---LSS-SECTION-SEPARATOR---"
             print_section "symlinks" -type l -not -name ".*"
-            echo "---SLS-SECTION-SEPARATOR---"
+            echo "---LSS-SECTION-SEPARATOR---"
             print_section "hidden symlinks" -type l -name ".*"
         } | python3 -c '
 import sys
@@ -288,7 +288,7 @@ def visual_len(s):
 
 def main():
     content = sys.stdin.read()
-    raw_sections = content.split("---SLS-SECTION-SEPARATOR---\n")
+    raw_sections = content.split("---LSS-SECTION-SEPARATOR---\n")
     sections = []
     
     for sec in raw_sections:
@@ -393,12 +393,12 @@ if __name__ == "__main__":
                 
                 if [[ "$title" == *symlinks* && "$HAS_L" = false ]]; then
                     # Custom symlink formatting to show targets
-                    local ls_params_sls=(-d -F --color=always)
-                    ls_params_sls+=("${PARAMS[@]}")
+                    local ls_params_lss=(-d -F --color=always)
+                    ls_params_lss+=("${PARAMS[@]}")
                     echo "$items" | while IFS= read -r item; do
                         [ -z "$item" ] && continue
                         local colored_link
-                        colored_link=$(ls "${ls_params_sls[@]}" "$item" 2>/dev/null)
+                        colored_link=$(ls "${ls_params_lss[@]}" "$item" 2>/dev/null)
                         colored_link="${colored_link%"${colored_link##*[![:space:]]}"}"
                         if [[ "$colored_link" == *@ ]]; then
                             colored_link="${colored_link%@}"
@@ -408,7 +408,7 @@ if __name__ == "__main__":
                         target=$(readlink "$item" 2>/dev/null)
                         
                         local colored_target
-                        colored_target=$(ls -d "${ls_params_sls[@]}" "$target" 2>/dev/null)
+                        colored_target=$(ls -d "${ls_params_lss[@]}" "$target" 2>/dev/null)
                         if [ -n "$colored_target" ]; then
                             colored_target="${colored_target%"${colored_target##*[![:space:]]}"}"
                             if [[ "$colored_target" == *@ ]]; then colored_target="${colored_target%@}"; fi

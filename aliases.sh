@@ -5,10 +5,10 @@
 TERMINAL_TOOLS_PATH="${TERMINAL_TOOLS_PATH:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/tools}"
 
 # Smart LS aliases
-alias lss="$TERMINAL_TOOLS_PATH/sls/sls"
-alias lst="$TERMINAL_TOOLS_PATH/sls/sls -t"
-alias lsg="$TERMINAL_TOOLS_PATH/sls/sls -g"
-alias lstg="$TERMINAL_TOOLS_PATH/sls/sls -t -g"
+alias lss="$TERMINAL_TOOLS_PATH/lss/lss"
+alias lst="$TERMINAL_TOOLS_PATH/lss/lss -t"
+alias lsg="$TERMINAL_TOOLS_PATH/lss/lss -g"
+alias lstg="$TERMINAL_TOOLS_PATH/lss/lss -t -g"
 
 # Gitac alias
 alias gitac="$TERMINAL_TOOLS_PATH/gitac/gitac"

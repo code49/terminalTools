@@ -1,4 +1,4 @@
-# sls — Smart LS
+# lss — Smart LS
 
 An improved `ls` wrapper that groups directory contents by type (directories, files, symlinks — and their hidden counterparts) and displays them in a columnar side-by-side layout. Always shows hidden files.
 
@@ -14,7 +14,7 @@ An improved `ls` wrapper that groups directory contents by type (directories, fi
 ## Usage
 
 ```
-sls [options] [directory]
+lss [options] [directory]
 ```
 
 ### Options
@@ -33,27 +33,27 @@ Any other flags (e.g., `-l`, `-S`) are passed through to `ls` or `tree`.
 
 ```bash
 # Default split view of current directory
-sls
+lss
 
 # Split view of a specific directory
-sls ~/projects
+lss ~/projects
 
 # Flat listing (like ls -A)
-sls -f
+lss -f
 
 # Long listing in split view
-sls -lh
+lss -lh
 
 # Tree view with depth 2
-sls -t 2
+lss -t 2
 
 # Tree view with long listing
-sls -t -lh
+lss -t -lh
 
 # Any mode with git status appended
-sls -g
-sls -t -g
-sls -f -g
+lss -g
+lss -t -g
+lss -f -g
 ```
 
 ## How Split View Works
@@ -79,9 +79,9 @@ sls -f -g
 
 ## Installation
 
-Ensure `sls` is on your `PATH`:
+Ensure `lss` is on your `PATH`:
 
 ```bash
 # Example: symlink into a directory on your PATH
-ln -s /path/to/terminalTools/tools/sls/sls ~/.local/bin/sls
+ln -s /path/to/terminalTools/tools/lss/lss ~/.local/bin/lss
 ```
