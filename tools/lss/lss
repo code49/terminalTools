@@ -262,22 +262,14 @@ if [ "$SPLIT" = true ]; then
     COLS=$(tput cols 2>/dev/null || echo 80)
 
     if command -v python3 >/dev/null 2>&1 && [ "$HAS_L" = false ] && [ "$HAS_1" = false ]; then
-        {
-            print_section "directories" -type d -not -name ".*"
-            echo "---LSS-SECTION-SEPARATOR---"
-            print_section "hidden directories" -type d -name ".*" -not -name "." -not -name ".."
-            echo "---LSS-SECTION-SEPARATOR---"
-            print_section "files" -not -type d -not -type l -not -name ".*"
-            echo "---LSS-SECTION-SEPARATOR---"
-            print_section "hidden files" -not -type d -not -type l -name ".*"
-            echo "---LSS-SECTION-SEPARATOR---"
-            print_section "symlinks" -type l -not -name ".*"
-            echo "---LSS-SECTION-SEPARATOR---"
-            print_section "hidden symlinks" -type l -name ".*"
-        } | python3 -c '
+        PY_TMP=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/lss_script_$$.py")
+        trap 'rm -f "$PY_TMP"' EXIT INT TERM
+        cat << 'PYEOF' > "$PY_TMP"
 import sys
-sys.stdin.reconfigure(errors="surrogateescape")
-sys.stdout.reconfigure(errors="surrogateescape")
+if hasattr(sys.stdin, "reconfigure"):
+    sys.stdin.reconfigure(errors="surrogateescape")
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(errors="surrogateescape")
 import re
 import shutil
 
@@ -365,7 +357,22 @@ def main():
 
 if __name__ == "__main__":
     main()
-' "$COLS"
+PYEOF
+
+        {
+            print_section "directories" -type d -not -name ".*"
+            echo "---LSS-SECTION-SEPARATOR---"
+            print_section "hidden directories" -type d -name ".*" -not -name "." -not -name ".."
+            echo "---LSS-SECTION-SEPARATOR---"
+            print_section "files" -not -type d -not -type l -not -name ".*"
+            echo "---LSS-SECTION-SEPARATOR---"
+            print_section "hidden files" -not -type d -not -type l -name ".*"
+            echo "---LSS-SECTION-SEPARATOR---"
+            print_section "symlinks" -type l -not -name ".*"
+            echo "---LSS-SECTION-SEPARATOR---"
+            print_section "hidden symlinks" -type l -name ".*"
+        } | python3 "$PY_TMP" "$COLS"
+        rm -f "$PY_TMP"
     else
         # Fallback to vertical layout using original ls formatting
         FIRST_SECTION=true
