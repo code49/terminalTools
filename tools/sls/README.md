@@ -25,9 +25,9 @@ sls [options] [directory]
 | `-f`, `--flat`, `--no-split` | Flat view — standard `ls -A` output |
 | `-t`, `-T`, `--tree` | Tree view (default depth: 3). Optionally specify depth: `-t 2` |
 | `-g`, `--git` | Append `git status` output if inside a git repo |
-| `--help` | Show built-in help |
+| `-h`, `--help` | Show built-in help |
 
-Any other flags (e.g., `-l`, `-h`, `-S`) are passed through to `ls` or `tree`.
+Any other flags (e.g., `-l`, `-S`) are passed through to `ls` or `tree`.
 
 ### Examples
 

@@ -17,10 +17,10 @@ Options:
   -t, -T, --tree Enable recursive tree view (defaults to depth 3)
                  You can optionally specify depth: -t [depth] (e.g., -t 2)
   -g, --git      Show 'git status' at the bottom of the output if in a git repository
-  --help         Show this help message
+  -h, --help     Show this help message
 
-All other flags (e.g., -l, -S, -h) are passed directly to the underlying commands.
-In tree mode, passing -l and -h displays file permissions, owner, date, and sizes.
+All other flags (e.g., -l, -S) are passed directly to the underlying commands.
+In tree mode, passing -l (or combined -lh) displays file permissions, owner, date, and sizes.
 EOF
 }
 
@@ -33,7 +33,7 @@ TARGET=""
 # Parse arguments
 while [ "$#" -gt 0 ]; do
     case "$1" in
-        --help)
+        -h|--help)
             show_help
             exit 0
             ;;
