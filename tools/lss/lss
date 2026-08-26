@@ -265,6 +265,17 @@ if [ "$SPLIT" = true ]; then
         if [ -z "$items" ]; then
             return
         fi
+
+        if [ -n "$items" ]; then
+            local zips non_zips
+            zips=$(echo "$items" | grep -i '\.zip$' | sort || true)
+            non_zips=$(echo "$items" | grep -v -i '\.zip$' | sort || true)
+            if [ -n "$zips" ] && [ -n "$non_zips" ]; then
+                items=$(printf "%s\n%s" "$zips" "$non_zips")
+            elif [ -n "$zips" ]; then
+                items="$zips"
+            fi
+        fi
         
         echo -e "${COLOR_TITLE}== $title ==${COLOR_RESET}"
         
@@ -280,7 +291,7 @@ if [ "$SPLIT" = true ]; then
                 fi
             done
 
-            local ls_params=(-d -F)
+            local ls_params=(-d -F -U)
             if [ -n "$color_mode" ]; then
                 ls_params+=("--color=$color_mode")
             fi
@@ -453,6 +464,17 @@ PYEOF
                 return
             fi
             
+            if [ -n "$items" ]; then
+                local zips non_zips
+                zips=$(echo "$items" | grep -i '\.zip$' | sort || true)
+                non_zips=$(echo "$items" | grep -v -i '\.zip$' | sort || true)
+                if [ -n "$zips" ] && [ -n "$non_zips" ]; then
+                    items=$(printf "%s\n%s" "$zips" "$non_zips")
+                elif [ -n "$zips" ]; then
+                    items="$zips"
+                fi
+            fi
+
             if [ "$FIRST_SECTION" = true ]; then
                 echo
                 FIRST_SECTION=false
@@ -460,12 +482,12 @@ PYEOF
             echo -e "${COLOR_TITLE}== $title ==${COLOR_RESET}"
             (
                 cd "$TARGET" || exit
-                local ls_params=(-d --color=auto -F)
+                local ls_params=(-d --color=auto -F -U)
                 ls_params+=("${PARAMS[@]}")
                 
                 if [[ "$title" == *symlinks* && "$HAS_L" = false ]]; then
                     # Custom symlink formatting to show targets
-                    local ls_params_lss=(-d -F --color=always)
+                    local ls_params_lss=(-d -F -U --color=always)
                     ls_params_lss+=("${PARAMS[@]}")
                     echo "$items" | while IFS= read -r item; do
                         [ -z "$item" ] && continue

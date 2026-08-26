@@ -65,6 +65,7 @@ lss -gh
 
 1. Entries are discovered with `find` and grouped into six categories:
    - directories, hidden directories, files, hidden files, symlinks, hidden symlinks
+   Within file listings (`files` and `hidden files`), `.zip` files appear before all other files.
 2. Each non-empty category is rendered as a labeled section.
 3. If `python3` is available and neither `-l` nor `-1` is active, sections are laid out side-by-side in columns that fit the terminal width (with a 4-space gap).
 4. Otherwise, sections are stacked vertically with standard `ls` column formatting.
