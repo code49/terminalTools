@@ -140,7 +140,7 @@ check_internet() {
 
   # Skip check for local / offline shortcuts
   case "$shortcut" in
-    res|pri|start) return 0 ;;
+    res|pri|start|s) return 0 ;;
   esac
 
   # Also skip if the URL looks like a local file path
@@ -169,7 +169,7 @@ dispatch() {
   if [ "$key" = "pri" ]; then
     handle_pri
     return 0
-  elif [ "$key" = "start" ]; then
+  elif [ "$key" = "start" ] || [ "$key" = "s" ]; then
     handle_start
     return 0
   fi
@@ -236,7 +236,7 @@ EOF
 
 Built-in shortcuts (not in config):
     pri        Launch personal profile in private window
-    start      Run startup apps script manually
+    s | start  Run startup apps script manually
 EOF
 }
 
@@ -268,7 +268,7 @@ interactive_select() {
     done
     # Append built-in specials
     printf "%-12s %-8s - %s\n" "[General]" "pri" "Private Window"
-    printf "%-12s %-8s - %s\n" "[General]" "start" "Run Startup Apps Script"
+    printf "%-12s %-8s - %s\n" "[General]" "s" "Run Startup Apps Script"
   )"
 
   local choice
