@@ -6,20 +6,23 @@ simple config file.
 ## Usage
 
 ```bash
-ff <shortcut>      # Launch a site/profile directly
-ff                 # Open an interactive fuzzy selector (requires fzf)
-ff -h | --help     # Show all available shortcuts
-ff -e | --edit     # Open the config file in $EDITOR
+ff <shortcut> [query|url]   # Launch a site/profile directly (optional URL or search)
+ff                          # Open an interactive fuzzy selector (requires fzf)
+ff -h | --help              # Show all available shortcuts
+ff -e | --edit              # Open the config file in $EDITOR
 ```
 
 ### Examples
 
 ```bash
-ff gmail           # Open personal Gmail in the dchan-personal profile
-ff c               # Open CMU Canvas in the dchan2-cmu profile
-ff mails           # Open all three email inboxes at once
-ff pri             # Launch a private browsing window
-ff                 # Browse shortcuts interactively with fzf
+ff gmail                    # Open personal Gmail in the dchan-personal profile
+ff c                        # Open CMU Canvas in the dchan2-cmu profile
+ff p https://example.com    # Open URL in dchan-personal profile
+ff c how to write verilog   # Google search in dchan2-cmu profile
+ff mails                    # Open all three email inboxes at once
+ff pri                      # Launch a private browsing window
+ff pri duckduckgo.com       # Open URL in private window
+ff                          # Browse shortcuts interactively with fzf
 ```
 
 ## Configuration (`ff.conf`)
