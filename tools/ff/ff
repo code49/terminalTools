@@ -254,36 +254,6 @@ handle_start() {
 }
 
 ###############################################################################
-# Internet connectivity check
-###############################################################################
-check_internet() {
-  local shortcut="${1:-}"
-  local target="${2:-}"
-
-  # Skip check for local / offline shortcuts
-  case "$shortcut" in
-    res|pri|start|s) return 0 ;;
-  esac
-
-  # Skip check if the target is a local file or loopback address
-  if [ -n "$target" ] && is_local "$target"; then
-    return 0
-  fi
-
-  # Ping Cloudflare DNS and Google DNS with a short timeout
-  if ! ping -c 1 -W 2 1.1.1.1 >/dev/null 2>&1 && \
-     ! ping -c 1 -W 2 8.8.8.8 >/dev/null 2>&1; then
-    if command -v notify-send >/dev/null 2>&1; then
-      notify-send -i firefox "Firefox Shortcuts" \
-        "Launch failed: No internet connection."
-    else
-      echo "Error: No internet connection." >&2
-    fi
-    exit 126
-  fi
-}
-
-###############################################################################
 # Dispatch a shortcut key or profile
 ###############################################################################
 dispatch() {
@@ -459,9 +429,6 @@ main() {
     shift || true
     query="$*"
   fi
-
-  # Check internet connectivity (skips local/private shortcuts and local targets)
-  check_internet "$shortcut" "$query"
 
   # Dispatch the shortcut
   dispatch "$shortcut" "$query"
